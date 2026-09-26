@@ -160,14 +160,6 @@ function renderUnsorted() {
     renderItems();
     if (narrow.matches) setSide(false);
   };
-  btn.addEventListener("dragover", (e) => { e.preventDefault(); btn.classList.add("drop"); });
-  btn.addEventListener("dragleave", () => btn.classList.remove("drop"));
-  btn.addEventListener("drop", (e) => {
-    e.preventDefault();
-    btn.classList.remove("drop");
-    const itemId = e.dataTransfer.getData("text/item-id");
-    if (itemId) moveItem(itemId, null);
-  });
 }
 
 function treeNode({ id, name, expandable, editable }) {
@@ -198,17 +190,6 @@ function treeNode({ id, name, expandable, editable }) {
   }
   row.onclick = () => { state.current = id; renderTree(); renderItems(); };
 
-  // Destino para arrastrar tarjetas ("Todo" no lo es)
-  if (id !== "all") {
-    row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("drop"); });
-    row.addEventListener("dragleave", () => row.classList.remove("drop"));
-    row.addEventListener("drop", (e) => {
-      e.preventDefault();
-      row.classList.remove("drop");
-      const itemId = e.dataTransfer.getData("text/item-id");
-      if (itemId) moveItem(itemId, id === "none" ? null : Number(id));
-    });
-  }
   wrap.appendChild(row);
 
   if (expandable) {
@@ -323,12 +304,6 @@ function renderItems() {
   for (const item of list) {
     const card = el("article", "card");
     card.dataset.id = item.id;
-    card.draggable = true;
-    card.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("text/item-id", item.id);
-      card.classList.add("dragging");
-    });
-    card.addEventListener("dragend", () => card.classList.remove("dragging"));
 
     // Imagen + acciones al pasar el ratón
     const thumb = el("div", "thumb");
@@ -337,6 +312,7 @@ function renderItems() {
       img.referrerPolicy = "no-referrer";
       img.loading = "lazy";
       img.decoding = "async";
+      img.draggable = false;  // sin "fantasma" al mantener pulsada la imagen
       img.onload = () => fitImage(img, thumb);
       img.onerror = () => img.replaceWith(el("div", "noimg label", "Sin imagen"));
       img.src = item.image;
@@ -454,7 +430,18 @@ function openExternal(url) {
   else window.open(url, "_blank");
 }
 
-$("#sort").addEventListener("change", () => { renderItems(); renderTree(); });
+// El orden elegido se recuerda entre sesiones
+function setSort(value) {
+  $("#sort").value = value;
+  try { localStorage.setItem("sort", value); } catch {}
+  renderItems();
+  renderTree();
+}
+$("#sort").addEventListener("change", () => setSort($("#sort").value));
+try {
+  const s = localStorage.getItem("sort");
+  if (s && [...$("#sort").options].some((o) => o.value === s)) $("#sort").value = s;
+} catch {}
 
 // ---------- Tamaño de tarjetas (S / M / L) ----------
 function setSize(size) {

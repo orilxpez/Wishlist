@@ -91,7 +91,6 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 1px s
 }
 .node-row:hover { color: var(--text); background: var(--bg-raise); }
 .node-row.active { color: var(--text); border-left-color: var(--text); }
-.node-row.drop { background: var(--bg-hover); color: var(--text); }
 .chev {
   width: 18px; height: 18px; flex-shrink: 0;
   display: grid; place-items: center;
@@ -129,7 +128,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 1px s
   color: var(--dim);
 }
 .unsorted[hidden] { display: none; }
-.unsorted:hover, .unsorted.drop { color: var(--muted); }
+.unsorted:hover { color: var(--muted); }
 .unsorted.active { color: var(--text); }
 
 .new-folder {
@@ -240,8 +239,7 @@ h1 sup {
   gap: calc(var(--gap) * 1.4) var(--gap);
   padding: 0 var(--pad) 64px;
 }
-.card { position: relative; cursor: grab; min-width: 0; }
-.card.dragging { opacity: .35; }
+.card { position: relative; min-width: 0; }
 .card.flash .thumb { outline: 1px solid var(--text); outline-offset: 4px; }
 
 /* Marco fijo 4:5 para todas; el fondo se adapta a la foto (ver app.js) */
