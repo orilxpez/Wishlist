@@ -1,7 +1,5 @@
 # ( Wishlist )
 
-Un archivo tranquilo de las cosas que quiero, donde los objetos hablan y la interfaz calla.
-
 App de escritorio para Windows que guarda productos de cualquier tienda online en
 carpetas. Pegas la URL de un producto y la app saca sola el título, la imagen y el
 precio, y después avisa si baja de precio.
