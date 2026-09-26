@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Wishlist</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <header class="col-head">
+      <span class="label">( Wishlist )</span>
+      <button type="button" class="icon-btn close-side" id="close-side" title="Cerrar">✕</button>
+    </header>
+
+    <nav id="tree" class="tree">
+      <!-- generado por app.js -->
+    </nav>
+
+    <!-- Productos sin clasificar: discreto, al pie; solo aparece si hay alguno -->
+    <button type="button" id="unsorted" class="unsorted label" hidden></button>
+
+    <form id="new-folder-form" class="new-folder">
+      <span class="plus">+</span>
+      <input id="new-folder-name" placeholder="Nueva carpeta" maxlength="60" autocomplete="off">
+    </form>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main>
+    <header class="topbar">
+      <button type="button" class="menu-btn label" id="menu-btn" title="Carpetas">( ☰ )</button>
+      <form id="omni-form" class="omni">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input id="omni" placeholder="Pega una URL o busca" autocomplete="off" spellcheck="false">
+        <button type="submit" id="omni-btn" class="pill dark" hidden>Añadir</button>
+      </form>
+      <div class="tools">
+        <div class="size-toggle label" id="size-toggle" role="radiogroup" aria-label="Tamaño de tarjetas">
+          <button type="button" data-size="s">S</button>
+          <button type="button" data-size="m">M</button>
+          <button type="button" data-size="l">L</button>
+        </div>
+        <label class="sort">
+          <span class="label hide-narrow">Orden</span>
+          <select id="sort">
+            <option value="date-desc">Recientes</option>
+            <option value="date-asc">Antiguos</option>
+            <option value="price-asc">Precio ↑</option>
+            <option value="price-desc">Precio ↓</option>
+            <option value="discount">Rebaja</option>
+            <option value="title">A–Z</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <section class="view-head">
+      <h1><span id="view-title">Todo</span><sup id="view-count"></sup></h1>
+    </section>
+
+    <section id="grid" class="grid"></section>
+    <p id="empty" class="empty" hidden>Nada por aquí todavía.<br>Pega la URL de un producto arriba.</p>
+  </main>
+
+  <!-- Alta / edición -->
+  <dialog id="item-dialog">
+    <form id="item-form" method="dialog">
+      <div class="dialog-grid">
+        <div class="preview-img"><img id="f-preview" alt="" referrerpolicy="no-referrer"></div>
+        <div class="fields">
+          <span class="label" id="dialog-title">( Nuevo )</span>
+          <p id="scrape-status" class="status"></p>
+          <label><span class="label">Título</span><input id="f-title" required></label>
+          <div class="row">
+            <label><span class="label">Precio <span id="f-sale" class="sale"></span></span><input id="f-price" placeholder="29,99 €"></label>
+            <label><span class="label">Carpeta</span><select id="f-folder"></select></label>
+          </div>
+          <label><span class="label">Notas</span><textarea id="f-notes" rows="2"></textarea></label>
+          <label><span class="label">Imagen</span><input id="f-image"></label>
+          <label><span class="label">URL</span><input id="f-url" required></label>
+          <menu>
+            <button type="button" id="cancel-btn" class="pill">Cancelar</button>
+            <button type="submit" id="save-btn" class="pill light">Guardar</button>
+          </menu>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirmaciones y renombrar: sustituye a confirm()/prompt() del navegador -->
+  <dialog id="ask-dialog" class="ask">
+    <form id="ask-form" method="dialog">
+      <span class="label muted" id="ask-label"></span>
+      <p id="ask-message"></p>
+      <input id="ask-input" autocomplete="off" spellcheck="false" hidden>
+      <menu>
+        <button type="button" id="ask-cancel" class="pill">Cancelar</button>
+        <button type="submit" id="ask-ok" class="pill light">Aceptar</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
