@@ -51,8 +51,11 @@ def _iter_jsonld(soup):
             if isinstance(obj, list):
                 stack.extend(obj)
             elif isinstance(obj, dict):
-                if "@graph" in obj:
-                    stack.append(obj["@graph"])
+                # Contenedores donde algunas tiendas anidan el producto:
+                # @graph, y Book -> workExample -> Product (Casa del Libro)
+                for key in ("@graph", "workExample", "mainEntity"):
+                    if key in obj:
+                        stack.append(obj[key])
                 yield obj
 
 
@@ -89,10 +92,12 @@ def _price_from_offers(offers):
         offers = offers[0] if offers else None
     if not isinstance(offers, dict):
         return None
-    amount = offers.get("price") or offers.get("lowPrice")
+    # Algunas tiendas escriben "Price" con mayúscula (Casa del Libro)
+    amount = (offers.get("price") or offers.get("Price")
+              or offers.get("lowPrice") or offers.get("LowPrice"))
     if amount is None and isinstance(offers.get("priceSpecification"), dict):
         amount = offers["priceSpecification"].get("price")
-    return _format_price(amount, offers.get("priceCurrency"))
+    return _format_price(amount, offers.get("priceCurrency") or offers.get("PriceCurrency"))
 
 
 def _image_from_jsonld(image):
@@ -118,15 +123,26 @@ def _amazon(soup):
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
         image = image or img.get("data-old-hires") or img.get("src")
-    price = soup.select_one(
-        "#corePrice_feature_div .a-offscreen, "
-        "#corePriceDisplay_desktop_feature_div .a-offscreen, "
-        ".priceToPay .a-offscreen, #priceblock_ourprice, #priceblock_dealprice"
-    )
+    def amazon_price(el):
+        # El texto accesible (.a-offscreen) a veces viene vacío; entonces el precio
+        # está repartido en piezas visibles: "8" "," "51" "€"
+        off = el.select_one(".a-offscreen")
+        text = off.get_text(strip=True) if off else ""
+        if not re.search(r"\d", text):
+            visible = el.select_one("[aria-hidden='true']") or el
+            text = visible.get_text("", strip=True)
+        return text if re.search(r"\d", text) else None
+
+    price = next(filter(None, (amazon_price(e) for e in soup.select(
+        ".priceToPay, "
+        "#corePriceDisplay_desktop_feature_div .a-price, "
+        "#corePrice_feature_div .a-price, "
+        "#apex_desktop .a-price, "
+        "#priceblock_ourprice, #priceblock_dealprice"))), None)
     return (
         title.get_text(strip=True) if title else None,
         image,
-        price.get_text(strip=True) if price else None,
+        price,
     )
 
 
@@ -141,6 +157,49 @@ def sentence_case(text):
         if ch.isdigit():
             return text  # "2 pack camisetas": si empieza por número, todo en minúscula
     return text
+
+
+def clean_title(title, url):
+    """Sin nombre de la tienda, sin extras y en formato frase."""
+    return sentence_case(simplify_title(strip_shop_name(title, url)))
+
+
+MAX_TITLE = 70
+
+
+def simplify_title(title):
+    """Deja solo lo esencial de títulos cargados de extras:
+
+    - 'Los huérfanos | Carmen Mola | Editorial Planeta'  -> 'Los huérfanos'
+    - 'Jersey - Punto - Algodón - Ref. 123'              -> 'Jersey'
+    - Títulos largos tipo Amazon con listas de características separadas por
+      comas -> hasta la primera coma ('Auriculares inalámbricos bluetooth').
+    - Si aún es muy largo, se corta en una palabra, sin dejarla a medias.
+    Los títulos cortos y normales no se tocan.
+    """
+    if not title:
+        return title
+    t = " ".join(title.split())
+    t = re.split(r"\s+[|│]\s+", t)[0]                   # "A | B | C" -> "A"
+    parts = re.split(r"\s+[-–—]\s+", t)
+    if len(parts) >= 3 or (len(parts) == 2 and len(t) > MAX_TITLE):
+        t = parts[0]                                     # "A - B - C" -> "A"
+    if len(t) > MAX_TITLE and "," in t:
+        head = t.split(",")[0].strip()
+        if len(head) >= 12:                              # evita quedarse con "Pack"
+            t = head
+    if len(t) > MAX_TITLE:
+        words = t[:MAX_TITLE].rsplit(" ", 1)[0].rstrip(" ,;:-–(").split()
+        # Sin terminar en "para", "con", "de"…
+        while len(words) > 3 and words[-1].lower() in _DANGLING:
+            words.pop()
+        t = " ".join(words).rstrip(" ,;:-–(")
+    return t
+
+
+_DANGLING = {"de", "del", "con", "para", "por", "en", "y", "e", "o", "u", "a", "al",
+             "el", "la", "los", "las", "un", "una", "sin", "tu", "su", "for", "with",
+             "and", "the", "of", "to", "in"}
 
 
 def strip_shop_name(title, url):
@@ -179,7 +238,8 @@ STRIKE_SELECTORS = (
     "[class*='compare-at'], [class*='compare_at'], [class*='was-price'], [class*='wasPrice'], "
     "[class*='original-price'], [class*='originalPrice'], [class*='price--old'], "
     "[class*='old-price'], [class*='oldPrice'], [class*='price-old'], [class*='regular-price'], "
-    "[class*='price--compare'], [class*='strikethrough'], [class*='crossed'], "
+    "[class*='price--compare'], [class*='strike'], [class*='crossed'], "
+    "[aria-label*='anteriormente'], [aria-label*='antes'], "
     "del, s"
 )
 
@@ -237,9 +297,10 @@ def scrape(url, timeout=12):
 
     rendered = browser.fetch(url)
     if rendered:
-        slow = parse(rendered[0].encode("utf-8"), rendered[1])
-        if slow["price"] or not fast:
-            return slow
+        # Aquí la lectura rápida no trajo precio (o falló): la del navegador es la
+        # página real, mientras que la rápida puede ser una página intermedia
+        # ("Amazon.es", verificaciones…). Se prefiere la del navegador.
+        return parse(rendered[0].encode("utf-8"), rendered[1])
     if fast:
         return fast
     raise error or RuntimeError("No se pudo leer la página")
@@ -295,7 +356,7 @@ def parse(html, final_url):
         image = urljoin(final_url, image)
 
     return {
-        "title": sentence_case(strip_shop_name(title, url))[:300] if title else url,
+        "title": clean_title(title, url) if title else url,
         "image": image,
         "price": price,
         "original_price": meta_original or _original_price(soup, product, price),

@@ -26,15 +26,23 @@ def wait_available(timeout=20):
 READY_JS = """
 !!(document.querySelector('meta[property="og:price:amount"], meta[property="product:price:amount"]')
    || [...document.querySelectorAll('script[type="application/ld+json"]')]
-        .some(s => /"price"\\s*:/.test(s.textContent))
-   || document.querySelector('[itemprop="price"]'))
+        .some(s => /"price"\\s*:/i.test(s.textContent))
+   || document.querySelector('[itemprop="price"]')
+   || document.querySelector('#productTitle') && document.querySelector('.a-price .a-offscreen'))  // Amazon
 """
 
 
 # Pantallas de espera / verificación (COS, Akamai, Cloudflare…): se aguanta más
+# Incluye páginas aún "vacías" (sin título ni apenas texto): las verificaciones por
+# JavaScript (COS, Akamai…) se ven así mientras trabajan.
 WAITING_JS = r"""
-/patience|waiting room|queue|just a moment|checking your browser|verif|un momento|espera/i
-  .test((document.title || '') + ' ' + ((document.body && document.body.innerText) || '').slice(0, 400))
+(() => {
+  const title = document.title || '';
+  const text = ((document.body && document.body.innerText) || '').trim();
+  return !title.trim() || text.length < 200 ||
+    /patience|waiting room|queue|just a moment|checking your browser|verif|un momento|espera/i
+      .test(title + ' ' + text.slice(0, 400));
+})()
 """
 EXTENDED_TIMEOUT = 60
 
@@ -55,22 +63,35 @@ def fetch(url, timeout=20):
             win = webview.create_window("", url, hidden=True)
             t0 = time.time()
             limit = timeout
-            ready = False
+            ready = reloaded = False
             while time.time() - t0 < limit:
-                time.sleep(0.8)
+                time.sleep(0.5)
                 try:
                     ready = bool(win.evaluate_js(READY_JS))
                     if not ready and limit == timeout and win.evaluate_js(WAITING_JS):
                         limit = EXTENDED_TIMEOUT  # la tienda nos tiene en espera
+                    # Algunas tiendas (Amazon) muestran una página intermedia la primera
+                    # vez y el producto a partir de la siguiente carga: se recarga una vez.
+                    if not ready and not reloaded and time.time() - t0 > 6 and limit == timeout:
+                        reloaded = True
+                        win.load_url(url)
                 except Exception:
                     ready = False
                 if ready:
                     break
             if ready:
                 time.sleep(0.8)  # margen para que se pinte el precio tachado
-            html = win.evaluate_js("document.documentElement.outerHTML")
-            final = win.evaluate_js("location.href") or url
-            return (html, final) if html else None
+            # Si justo está navegando (redirección tras la verificación) se reintenta
+            for _ in range(3):
+                try:
+                    html = win.evaluate_js("document.documentElement.outerHTML")
+                    final = win.evaluate_js("location.href") or url
+                    if html:
+                        return html, final
+                except Exception:
+                    pass
+                time.sleep(1)
+            return None
         except Exception:
             return None
         finally:

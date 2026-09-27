@@ -11,7 +11,7 @@ from flask import Flask, g, jsonify, render_template, request, send_from_directo
 import browser
 import currency
 import images
-from scraper import scrape, sentence_case, strip_shop_name
+from scraper import scrape, sentence_case, simplify_title, strip_shop_name
 
 
 def resource_path(rel):
@@ -96,6 +96,14 @@ def init_db():
                 if new != title:
                     conn.execute("UPDATE items SET title = ? WHERE id = ?", (new, iid))
             conn.execute("PRAGMA user_version = 1")
+        if version < 2:
+            # Títulos simplificados: sin "| autor | editorial", listas de características…
+            # (sin volver a tocar mayúsculas: respeta lo escrito a mano, p. ej. "iPhone")
+            for iid, title, url in conn.execute("SELECT id, title, url FROM items").fetchall():
+                new = simplify_title(title)
+                if new and new != title:
+                    conn.execute("UPDATE items SET title = ? WHERE id = ?", (new, iid))
+            conn.execute("PRAGMA user_version = 2")
 
 
 def migrate_existing():
